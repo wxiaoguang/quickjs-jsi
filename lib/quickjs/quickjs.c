@@ -55978,3 +55978,15 @@ void JS_AddIntrinsicTypedArrays(JSContext *ctx)
     JS_AddIntrinsicAtomics(ctx);
 #endif
 }
+
+void JS_DumpObjects(JSRuntime *rt) {
+    struct list_head *el;
+    JSGCObjectHeader *p;
+    printf("JSObjects: {\n");
+    JS_DumpObjectHeader(rt);
+    list_for_each(el, &rt->gc_obj_list) {
+        p = list_entry(el, JSGCObjectHeader, link);
+        JS_DumpGCObject(rt, p);
+    }
+    printf("}\n");
+}
