@@ -1,6 +1,6 @@
 /*
  * C utilities
- * 
+ *
  * Copyright (c) 2017 Fabrice Bellard
  * Copyright (c) 2018 Charlie Gordon
  *
@@ -26,27 +26,14 @@
 #define CUTILS_H
 
 #include <stdlib.h>
+#include <string.h>
 #include <inttypes.h>
-#if defined(_MSC_VER)
-#include <intrin.h>
-#endif
 
-/* set if CPU is big endian */
-#undef WORDS_BIGENDIAN
-
-#if defined(_MSC_VER)
-#define likely(x)       (x)
-#define unlikely(x)     (x)
-#define force_inline __forceinline
-#define no_inline
-#define __maybe_unused
-#else
 #define likely(x)       __builtin_expect(!!(x), 1)
 #define unlikely(x)     __builtin_expect(!!(x), 0)
 #define force_inline inline __attribute__((always_inline))
 #define no_inline __attribute__((noinline))
 #define __maybe_unused __attribute__((unused))
-#endif
 
 #define xglue(x, y) x ## y
 #define glue(x, y) xglue(x, y)
@@ -58,6 +45,16 @@
 #endif
 #ifndef countof
 #define countof(x) (sizeof(x) / sizeof((x)[0]))
+#endif
+#ifndef container_of
+/* return the pointer of type 'type *' containing 'ptr' as field 'member' */
+#define container_of(ptr, type, member) ((type *)((uint8_t *)(ptr) - offsetof(type, member)))
+#endif
+
+#if !defined(_MSC_VER) && defined(__STDC_VERSION__) && __STDC_VERSION__ >= 199901L
+#define minimum_length(n)  static n
+#else
+#define minimum_length(n)  n
 #endif
 
 typedef int BOOL;
@@ -73,6 +70,12 @@ void pstrcpy(char *buf, int buf_size, const char *str);
 char *pstrcat(char *buf, int buf_size, const char *s);
 int strstart(const char *str, const char *val, const char **ptr);
 int has_suffix(const char *str, const char *suffix);
+
+/* Prevent UB when n == 0 and (src == NULL or dest == NULL) */
+static inline void memcpy_no_ub(void *dest, const void *src, size_t n) {
+    if (n)
+        memcpy(dest, src, n);
+}
 
 static inline int max_int(int a, int b)
 {
@@ -125,56 +128,26 @@ static inline int64_t min_int64(int64_t a, int64_t b)
 /* WARNING: undefined if a = 0 */
 static inline int clz32(unsigned int a)
 {
-#if defined(_MSC_VER)
-    unsigned long ret = 0;
-    _BitScanReverse(&ret, a);
-    return (int)ret;
-#else
     return __builtin_clz(a);
-#endif
 }
 
 /* WARNING: undefined if a = 0 */
 static inline int clz64(uint64_t a)
 {
-#if defined(_MSC_VER)
-    unsigned long ret = 0;
-    _BitScanReverse64(&ret, a);
-    return (int)ret;
-#else
     return __builtin_clzll(a);
-#endif
 }
 
 /* WARNING: undefined if a = 0 */
 static inline int ctz32(unsigned int a)
 {
-#if defined(_MSC_VER)
-    unsigned long ret = 0;
-    _BitScanForward(&ret, a);
-    return (int)ret;
-#else
     return __builtin_ctz(a);
-#endif
 }
 
 /* WARNING: undefined if a = 0 */
 static inline int ctz64(uint64_t a)
 {
-#if defined(_MSC_VER)
-    unsigned long ret = 0;
-    _BitScanForward64(&ret, a);
-    return (int)ret;
-#else
     return __builtin_ctzll(a);
-#endif
 }
-
-#if defined(_MSC_VER)
-#pragma pack(push)
-#pragma pack(1)
-#define __attribute__(x) /* */
-#endif
 
 struct __attribute__((packed)) packed_u64 {
     uint64_t v;
@@ -187,11 +160,6 @@ struct __attribute__((packed)) packed_u32 {
 struct __attribute__((packed)) packed_u16 {
     uint16_t v;
 };
-
-#if defined(_MSC_VER)
-#pragma pack(pop)
-#undef __attribute__
-#endif
 
 static inline uint64_t get_u64(const uint8_t *tab)
 {
@@ -253,28 +221,34 @@ static inline void put_u8(uint8_t *tab, uint8_t val)
     *tab = val;
 }
 
+#ifndef bswap16
 static inline uint16_t bswap16(uint16_t x)
 {
     return (x >> 8) | (x << 8);
 }
+#endif
 
+#ifndef bswap32
 static inline uint32_t bswap32(uint32_t v)
 {
     return ((v & 0xff000000) >> 24) | ((v & 0x00ff0000) >>  8) |
         ((v & 0x0000ff00) <<  8) | ((v & 0x000000ff) << 24);
 }
+#endif
 
+#ifndef bswap64
 static inline uint64_t bswap64(uint64_t v)
 {
-    return ((v & ((uint64_t)0xff << (7 * 8))) >> (7 * 8)) | 
-        ((v & ((uint64_t)0xff << (6 * 8))) >> (5 * 8)) | 
-        ((v & ((uint64_t)0xff << (5 * 8))) >> (3 * 8)) | 
-        ((v & ((uint64_t)0xff << (4 * 8))) >> (1 * 8)) | 
-        ((v & ((uint64_t)0xff << (3 * 8))) << (1 * 8)) | 
-        ((v & ((uint64_t)0xff << (2 * 8))) << (3 * 8)) | 
-        ((v & ((uint64_t)0xff << (1 * 8))) << (5 * 8)) | 
+    return ((v & ((uint64_t)0xff << (7 * 8))) >> (7 * 8)) |
+        ((v & ((uint64_t)0xff << (6 * 8))) >> (5 * 8)) |
+        ((v & ((uint64_t)0xff << (5 * 8))) >> (3 * 8)) |
+        ((v & ((uint64_t)0xff << (4 * 8))) >> (1 * 8)) |
+        ((v & ((uint64_t)0xff << (3 * 8))) << (1 * 8)) |
+        ((v & ((uint64_t)0xff << (2 * 8))) << (3 * 8)) |
+        ((v & ((uint64_t)0xff << (1 * 8))) << (5 * 8)) |
         ((v & ((uint64_t)0xff << (0 * 8))) << (7 * 8));
 }
+#endif
 
 /* XXX: should take an extra argument to pass slack information to the caller */
 typedef void *DynBufReallocFunc(void *opaque, void *ptr, size_t size);
@@ -308,21 +282,51 @@ static inline int dbuf_put_u64(DynBuf *s, uint64_t val)
 {
     return dbuf_put(s, (uint8_t *)&val, 8);
 }
-#if defined(_MSC_VER)
-int dbuf_printf(DynBuf *s, const char *fmt, ...);
-#else
 int __attribute__((format(printf, 2, 3))) dbuf_printf(DynBuf *s,
                                                       const char *fmt, ...);
-#endif
 void dbuf_free(DynBuf *s);
 static inline BOOL dbuf_error(DynBuf *s) {
     return s->error;
+}
+static inline void dbuf_set_error(DynBuf *s)
+{
+    s->error = TRUE;
 }
 
 #define UTF8_CHAR_LEN_MAX 6
 
 int unicode_to_utf8(uint8_t *buf, unsigned int c);
 int unicode_from_utf8(const uint8_t *p, int max_len, const uint8_t **pp);
+
+static inline BOOL is_surrogate(uint32_t c)
+{
+    return (c >> 11) == (0xD800 >> 11); // 0xD800-0xDFFF
+}
+
+static inline BOOL is_hi_surrogate(uint32_t c)
+{
+    return (c >> 10) == (0xD800 >> 10); // 0xD800-0xDBFF
+}
+
+static inline BOOL is_lo_surrogate(uint32_t c)
+{
+    return (c >> 10) == (0xDC00 >> 10); // 0xDC00-0xDFFF
+}
+
+static inline uint32_t get_hi_surrogate(uint32_t c)
+{
+    return (c >> 10) - (0x10000 >> 10) + 0xD800;
+}
+
+static inline uint32_t get_lo_surrogate(uint32_t c)
+{
+    return (c & 0x3FF) | 0xDC00;
+}
+
+static inline uint32_t from_surrogate(uint32_t hi, uint32_t lo)
+{
+    return 0x10000 + 0x400 * (hi - 0xD800) + (lo - 0xDC00);
+}
 
 static inline int from_hex(int c)
 {

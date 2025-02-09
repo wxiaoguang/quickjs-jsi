@@ -17,12 +17,13 @@ include_directories("lib")
 
 
 set(SRCS_FBJSI "lib/jsi/jsi.cpp")
-set(SRCS_QUICKJS "lib/quickjs/bjson.c" "lib/quickjs/cutils.c" "lib/quickjs/libbf.c" "lib/quickjs/libregexp.c" "lib/quickjs/libunicode.c" "lib/quickjs/quickjs.c")
+set(SRCS_QUICKJS "lib/quickjs/cutils.c" "lib/quickjs/libbf.c" "lib/quickjs/libregexp.c" "lib/quickjs/libunicode.c" "lib/quickjs/quickjs.c")
 
 set(SRCS_RUNTIME "src/QuickJSRuntime.cpp")
 set(SRCS_TEST "src/QuickJSRuntime_test.cpp" "src/QuickJSRuntimeJSI_test.cpp" "lib/jsi/test/testlib.cpp")
 
 add_compile_options(-DCONFIG_VERSION="test-ver")
+add_compile_options(-DUSE_BF_DEC)
 
 # Now simply link against gtest or gtest_main as needed. Eg
 add_executable(quickjs-test ${SRCS_RUNTIME} ${SRCS_TEST} ${SRCS_QUICKJS} ${SRCS_FBJSI})
