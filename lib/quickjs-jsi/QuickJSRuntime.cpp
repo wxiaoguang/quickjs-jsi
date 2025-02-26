@@ -646,14 +646,16 @@ namespace quickjs {
             return (size_t)arr.getProperty(*this, "length").asNumber();
         }
 
-        size_t size(const jsi::ArrayBuffer &) override {
-            // TODO: size ArrayBuffer
-            std::abort();
+        size_t size(const jsi::ArrayBuffer &arr) override {
+            size_t byteLength = 0;
+            uint8_t *buffer = JS_GetArrayBuffer(jsContext, &byteLength, pointerJSValue(arr));
+            return byteLength;
         }
 
-        uint8_t *data(const jsi::ArrayBuffer &) override {
-            // TODO: data ArrayBuffer
-            std::abort();
+        uint8_t *data(const jsi::ArrayBuffer &arr) override {
+            size_t byteLength = 0;
+            uint8_t *buffer = JS_GetArrayBuffer(jsContext, &byteLength, pointerJSValue(arr));
+            return buffer;
         }
 
         jsi::Value getValueAtIndex(const jsi::Array &arr, size_t i) override {
