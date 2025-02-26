@@ -19,13 +19,16 @@ namespace quickjs {
     } // namespace
 
     static constexpr size_t MaxCallArgCount = 32;
+    static constexpr JSClassID JS_CLASS_ARRAY_BUFFER = 19; // const from quickjs enum
+    static constexpr JSClassID JS_CLASS_UINT8_ARRAY = 21;
 
     class QuickJSRuntime : public jsi::Runtime {
     private:
+        bool jsRuntimeProvided;
         JSRuntime *jsRuntime;
         JSContext *jsContext;
 
-        JSAtom atomToString, atomLength, atomName;
+        JSAtom atomToString{}, atomLength{}, atomName{};
 
         class QuickJSPointerValue final : public jsi::Runtime::PointerValue {
         public:
@@ -243,18 +246,34 @@ namespace quickjs {
             return -1;
         }
 
-    public:
-        explicit QuickJSRuntime() {
-            jsRuntime = JS_NewRuntime();
-            jsContext = JS_NewContext(jsRuntime);
+        void initCommon() {
             JS_SetContextOpaque(jsContext, this);
-
             atomToString = JS_NewAtom(jsContext, "toString");
             atomLength = JS_NewAtom(jsContext, "length");
             atomName = JS_NewAtom(jsContext, "name");
         }
+    public:
+        explicit QuickJSRuntime() {
+            jsRuntimeProvided = false;
+            jsRuntime = JS_NewRuntime();
+            jsContext = JS_NewContext(jsRuntime);
+            initCommon();
+        }
 
-        ~QuickJSRuntime() override = default;
+        explicit QuickJSRuntime(JSContext *ctx) {
+            jsRuntimeProvided = true;
+            jsRuntime = JS_GetRuntime(ctx);
+            jsContext = ctx;
+            initCommon();
+        }
+
+        ~QuickJSRuntime() override {
+            if (jsRuntimeProvided) return;
+            JS_FreeContext(jsContext);
+            jsContext = nullptr;
+            JS_FreeRuntime(jsRuntime);
+            jsRuntime = nullptr;
+        }
 
         jsi::Value evaluateJavaScript(const std::shared_ptr<const jsi::Buffer> &buffer, const std::string &sourceURL) override {
             JSValue result;
@@ -544,9 +563,8 @@ namespace quickjs {
         }
 
         [[nodiscard]]
-        bool isArrayBuffer(const jsi::Object &) const override {
-            // return JS_(jsContext, pointerJSValue(obj));
-            return false; // FIXME: array buffer support?
+        bool isArrayBuffer(const jsi::Object &obj) const override {
+            return JS_GetClassID(pointerJSValue(obj)) == JS_CLASS_ARRAY_BUFFER;
         }
 
         [[nodiscard]]
@@ -794,7 +812,8 @@ namespace quickjs {
         }
     };
 
-    std::unique_ptr<jsi::Runtime> __cdecl makeQuickJSRuntime() {
+    std::unique_ptr<jsi::Runtime> __cdecl makeQuickJSRuntime(JSContext *ctx) {
+        if (ctx) return std::make_unique<QuickJSRuntime>(ctx);
         return std::make_unique<QuickJSRuntime>();
     }
 }
