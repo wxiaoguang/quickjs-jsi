@@ -129,7 +129,11 @@ namespace quickjs {
         }
 
         static jsi::Value takeToJsiValue(QuickJSRuntime *runtime, JSValue jsValue) {
-            if (JS_IsException(jsValue)) runtime->ThrowJSError();
+            // FIXME: this error handling is not right, it should only check for some special cases, for example: call
+            if (JS_IsException(jsValue)) {
+                runtime->ThrowJSError();
+                return nullptr;
+            }
             switch (JS_VALUE_GET_TAG(jsValue)) {
                 case JS_TAG_UNDEFINED:
                 case JS_TAG_UNINITIALIZED: // TODO: undefined or null?
@@ -164,8 +168,12 @@ namespace quickjs {
         [[noreturn]]
         void ThrowJSError() {
             auto exc = takeToJsiValue(this, JS_GetException(jsContext));
-            auto obj = exc.asObject(*this);
+            if (!exc.isObject()) {
+                // FIXME: the error handling is not right
+                throw jsi::JSError(*this, "Unknown error");
+            }
 
+            auto obj = exc.asObject(*this);
             std::string message, stack;
             auto propMessage = createPropNameIDFromCString(jsContext, "message");
             auto propStack = createPropNameIDFromCString(jsContext, "stack");
